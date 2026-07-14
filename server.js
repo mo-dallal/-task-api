@@ -28,7 +28,37 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/tasks', (req, res) => {
-  res.json(tasks);
+  let result = tasks;
+
+  // ?done=true or ?done=false — filter by completion status
+  if (req.query.done !== undefined) {
+    const wantDone = req.query.done === 'true';
+    result = result.filter(t => t.done === wantDone);
+  }
+
+  // ?search=milk — case-insensitive substring match on title
+  if (req.query.search) {
+    const term = req.query.search.toLowerCase();
+    result = result.filter(t => t.title.toLowerCase().includes(term));
+  }
+
+  res.json(result);
+});
+
+app.get('/stats', (req, res) => {
+  const total = tasks.length;
+  const done = tasks.filter(t => t.done).length;
+  res.json({ total, done, open: total - done });
+});
+
+app.post('/reset', (req, res) => {
+  tasks = [
+    { id: 1, title: 'Buy milk', done: false },
+    { id: 2, title: 'Write README', done: false },
+    { id: 3, title: 'Walk the dog', done: true }
+  ];
+  nextId = 4;
+  res.json({ message: 'Tasks reset to seed data', tasks });
 });
 
 app.get('/tasks/:id', (req, res) => {

@@ -9,7 +9,11 @@
   "paths": {
     "/tasks": {
       "get": {
-        "summary": "List all tasks",
+        "summary": "List all tasks (optionally filter/search)",
+        "parameters": [
+          { "name": "done", "in": "query", "required": false, "schema": { "type": "boolean" }, "description": "Filter by completion status" },
+          { "name": "search", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Case-insensitive substring match on title" }
+        ],
         "responses": {
           "200": {
             "description": "Array of tasks",
@@ -40,6 +44,40 @@
           "400": {
             "description": "Missing or empty title",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "summary": "Get task statistics",
+        "responses": {
+          "200": {
+            "description": "Counts of total/done/open tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "done": { "type": "integer" },
+                    "open": { "type": "integer" }
+                  }
+                },
+                "example": { "total": 7, "done": 3, "open": 4 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reset": {
+      "post": {
+        "summary": "Reset tasks back to the 3 seed examples",
+        "responses": {
+          "200": {
+            "description": "Tasks reset",
+            "content": { "application/json": { "schema": { "type": "object" } } }
           }
         }
       }
