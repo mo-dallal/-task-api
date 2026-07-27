@@ -1,19 +1,23 @@
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const openapiSpec = require('./openapi.json');
+const db = require('./db');
 const app = express();
 const PORT = 3000;
 
 app.use(express.json()); // parses JSON request bodies into req.body
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
 
-// In-memory "database" — resets every time the server restarts.
-let tasks = [
-  { id: 1, title: 'Buy milk', done: false },
-  { id: 2, title: 'Write README', done: false },
-  { id: 3, title: 'Walk the dog', done: true }
-];
-let nextId = 4;
+// Converts a raw SQLite row (done stored as 0/1) into the JSON shape the API returns.
+function toTaskJson(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    done: !!row.done,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
 
 app.get('/', (req, res) => {
   res.json({
@@ -28,46 +32,56 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/tasks', (req, res) => {
-  let result = tasks;
+  let sql = 'SELECT * FROM tasks WHERE 1=1';
+  const params = [];
 
   // ?done=true or ?done=false — filter by completion status
   if (req.query.done !== undefined) {
-    const wantDone = req.query.done === 'true';
-    result = result.filter(t => t.done === wantDone);
+    sql += ' AND done = ?';
+    params.push(req.query.done === 'true' ? 1 : 0);
   }
 
-  // ?search=milk — case-insensitive substring match on title
+  // ?search=milk — case-insensitive substring match on title, via SQL LIKE
   if (req.query.search) {
-    const term = req.query.search.toLowerCase();
-    result = result.filter(t => t.title.toLowerCase().includes(term));
+    sql += ' AND title LIKE ? COLLATE NOCASE';
+    params.push(`%${req.query.search}%`);
   }
 
-  res.json(result);
+  // ?sort=title — alphabetical ordering (optional extra)
+  if (req.query.sort === 'title') {
+    sql += ' ORDER BY title COLLATE NOCASE ASC';
+  } else {
+    sql += ' ORDER BY id ASC';
+  }
+
+  const rows = db.prepare(sql).all(...params);
+  res.json(rows.map(toTaskJson));
 });
 
 app.get('/stats', (req, res) => {
-  const total = tasks.length;
-  const done = tasks.filter(t => t.done).length;
+  const total = db.prepare('SELECT COUNT(*) AS c FROM tasks').get().c;
+  const done = db.prepare('SELECT COUNT(*) AS c FROM tasks WHERE done = 1').get().c;
   res.json({ total, done, open: total - done });
 });
 
 app.post('/reset', (req, res) => {
-  tasks = [
-    { id: 1, title: 'Buy milk', done: false },
-    { id: 2, title: 'Write README', done: false },
-    { id: 3, title: 'Walk the dog', done: true }
-  ];
-  nextId = 4;
-  res.json({ message: 'Tasks reset to seed data', tasks });
+  db.exec('DELETE FROM tasks');
+  db.exec("DELETE FROM sqlite_sequence WHERE name = 'tasks'"); // restart id numbering at 1
+  const insert = db.prepare('INSERT INTO tasks (title, done) VALUES (?, ?)');
+  insert.run('Buy milk', 0);
+  insert.run('Write README', 0);
+  insert.run('Walk the dog', 1);
+  const rows = db.prepare('SELECT * FROM tasks ORDER BY id ASC').all();
+  res.json({ message: 'Tasks reset to seed data', tasks: rows.map(toTaskJson) });
 });
 
 app.get('/tasks/:id', (req, res) => {
   const id = Number(req.params.id);
-  const task = tasks.find(t => t.id === id);
-  if (!task) {
+  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (!row) {
     return res.status(404).json({ error: `Task ${id} not found` });
   }
-  res.json(task);
+  res.json(toTaskJson(row));
 });
 
 app.post('/tasks', (req, res) => {
@@ -77,21 +91,19 @@ app.post('/tasks', (req, res) => {
     return res.status(400).json({ error: 'title is required and must be a non-empty string' });
   }
 
-  const newTask = { id: nextId++, title: title.trim(), done: false };
-  tasks.push(newTask);
-  res.status(201).json(newTask);
+  const result = db.prepare('INSERT INTO tasks (title, done) VALUES (?, 0)').run(title.trim());
+  const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(toTaskJson(row));
 });
 
 app.put('/tasks/:id', (req, res) => {
   const id = Number(req.params.id);
-  const task = tasks.find(t => t.id === id);
-  if (!task) {
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (!existing) {
     return res.status(404).json({ error: `Task ${id} not found` });
   }
 
   const { title, done } = req.body || {};
-
-  // At least one valid field must be provided, and if title is given it must be non-empty.
   const titleProvided = title !== undefined;
   const doneProvided = done !== undefined;
 
@@ -105,19 +117,22 @@ app.put('/tasks/:id', (req, res) => {
     return res.status(400).json({ error: 'done must be a boolean' });
   }
 
-  if (titleProvided) task.title = title.trim();
-  if (doneProvided) task.done = done;
+  const newTitle = titleProvided ? title.trim() : existing.title;
+  const newDone = doneProvided ? (done ? 1 : 0) : existing.done;
 
-  res.json(task);
+  db.prepare("UPDATE tasks SET title = ?, done = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(newTitle, newDone, id);
+
+  const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  res.json(toTaskJson(updated));
 });
 
 app.delete('/tasks/:id', (req, res) => {
   const id = Number(req.params.id);
-  const index = tasks.findIndex(t => t.id === id);
-  if (index === -1) {
+  const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+  if (result.changes === 0) {
     return res.status(404).json({ error: `Task ${id} not found` });
   }
-  tasks.splice(index, 1);
   res.status(204).send();
 });
 
