@@ -112,8 +112,10 @@ DELETE FROM tasks WHERE done = 1;
 -- (in this case) deletes everything, since the previous UPDATE marked all tasks done
 ```
 
-> 📸 Add a screenshot of DB Browser for SQLite here, e.g.:
-> `![Database viewer screenshot](./db-viewer-screenshot.png)`
+
+> `![Database viewer screenshot](images/db-viewer-screen.png)`
+> `![Database viewer screenshot](images/db-viewer2%20.png)`
+
 
 I confirmed the API and the database are the same data, not two copies: while the server was running, I
 inserted a row directly with a separate script (bypassing the API entirely), and it appeared immediately
