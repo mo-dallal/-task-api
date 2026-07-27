@@ -1,8 +1,11 @@
 {
   "name": "task-api",
   "version": "1.0.0",
-  "description": "A small in-memory CRUD API for managing a to-do list (W2 A1).",
+  "description": "A CRUD API for a to-do list, backed by SQLite (W2 A1 + W3 A1). Requires Node.js 22.5+.",
   "main": "server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
