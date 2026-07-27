@@ -113,8 +113,8 @@ DELETE FROM tasks WHERE done = 1;
 ```
 
 
-> `![Database viewer screenshot](images/db-viewer-screen.png)`
-> `![Database viewer screenshot](images/db-viewer2%20.png)`
+ `![Database viewer screenshot](images/db-viewer-screen.png)`
+ `![Database viewer screenshot](images/db-viewer2%20.png)`
 
 
 I confirmed the API and the database are the same data, not two copies: while the server was running, I
