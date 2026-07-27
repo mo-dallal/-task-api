@@ -12,7 +12,8 @@
         "summary": "List all tasks (optionally filter/search)",
         "parameters": [
           { "name": "done", "in": "query", "required": false, "schema": { "type": "boolean" }, "description": "Filter by completion status" },
-          { "name": "search", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Case-insensitive substring match on title" }
+          { "name": "search", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Case-insensitive substring match on title" },
+          { "name": "sort", "in": "query", "required": false, "schema": { "type": "string", "enum": ["title"] }, "description": "Pass 'title' to sort alphabetically" }
         ],
         "responses": {
           "200": {
@@ -144,7 +145,9 @@
         "properties": {
           "id": { "type": "integer", "example": 1 },
           "title": { "type": "string", "example": "Buy milk" },
-          "done": { "type": "boolean", "example": false }
+          "done": { "type": "boolean", "example": false },
+          "created_at": { "type": "string", "example": "2026-07-27 12:00:00" },
+          "updated_at": { "type": "string", "example": "2026-07-27 12:00:00" }
         }
       },
       "NewTask": {
